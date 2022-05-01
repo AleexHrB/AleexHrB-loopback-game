@@ -1,0 +1,325 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loopback</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+        canvas {
+            display: block;
+            margin: 0;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+    }
+
+    </style>
+</head>
+<body>
+<div id="canvas">
+<script type="text/javascript">
+
+    var config = {
+        type: Phaser.AUTO,
+        width: 1280,
+        height: 720,
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+
+    var game = new Phaser.Game(config);
+    var mouseX;
+    var mouseY;
+    var text1;
+    var text2;
+    var textnum;
+    var count = 0;
+    var posicion;
+    var pulsadoL;
+    var rect;
+    var pressed = false;
+    var N = 15;
+    var mapw = 500;
+    var maph = 500;
+    var offX = config.width/2 - mapw/2;
+    var offY = config.height/2 - maph/2;
+    var acti = Math.floor(N/2);
+    var actj = Math.floor(N/2);
+    var keyLeft;
+    var keyRight; 
+    var keyUp;
+    var keyDown;
+    var DownPressed = false;
+    var arr;
+    var k;
+    var visitats = [];
+    var won = false;
+    var lost = false;
+
+    //VARIABLES RARAS DE PHASER
+  	
+  	
+    var state = 0;
+  	var highestscore = 0;
+  	/*
+  	 ESTADO 0 -> fase inicial del juego, pantalla de selecion y carga
+     ESTADO 1 -> fase de juego
+     ESTADO 10 -> fin de la partida (GAMEOVER)
+     ESTADO 11 -> SELECCION DE VOLVER A JUGAR/CERRAR
+     
+     
+		*/ 
+
+    function preload ()
+    {
+        this.load.image('sky', 'assets/sky.png');
+        this.load.image('ground', 'assets/platform.png');
+        this.load.image('star', 'assets/star.png');
+        this.load.image('bomb', 'assets/bomb.png');
+        this.load.image('white', 'assets/white.jpg');
+        this.load.spritesheet('dude', 
+        'assets/dude.png',
+        { frameWidth: 32, frameHeight: 48 }
+        );
+
+        window.addEventListener("resize", resize, false);
+    }
+
+    function create ()
+    {
+        rect = [];
+        arr = [];
+        this.add.image(400, 300, 'white');
+        var graphics = this.add.graphics({ fillStyle: { color: 0xffff00 } });
+
+        let pantalla_carrega = new Phaser.Geom.Rectangle(50,50,50,50);																																
+      	graphics.fillRectShape(pantalla_carrega);
+        state = 1;
+        
+        for (let i = 0; i < N; ++i) {
+            for (let j = 0; j < N; ++j) {
+                rect.push(new Phaser.Geom.Rectangle(offX + mapw/N*i, offY + mapw/N*j, Math.floor(mapw/N), Math.floor(maph/N)));
+                graphics.lineStyle(Math.floor(100/N), 0xffff8f, 1.0);   // color: 0xRRGGBB
+                graphics.strokeRectShape(rect[j + i*N]);
+                graphics.fillRectShape(rect[j + i*N]); 
+                  
+                arr.push((Math.floor(Math.random()*10)));
+            }
+        }
+        
+        
+        arr[Math.floor(N/2) + Math.floor(N/2)*N] = 0;
+
+        
+        posicion = Math.floor(Math.random() * (25 - 0 + 1) ) + 0;
+        text1 = this.add.text(100, 400, arr[posicion], { fill: '#000000' });
+        text2 = this.add.text(320,200,'JUAN',{color: '#FFFF00',backgroundColor: '#000000', fontSize: 2048, fontStyle: 'Comic Sans'});
+      	text2.setText(arr[acti*N + actj]);
+
+        var r2 = new Phaser.Geom.Triangle(200, 200, 0, 148, 148, 74);
+        var graphics = this.add.graphics({ fillStyle: { color: 0x00ff00 } });
+        graphics.fillTriangleShape(r2);
+        
+        keyLeft = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT);
+        keyUp = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
+        keyDown = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
+        keyRight = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
+
+        generate_value();   
+
+        text2 = this.add.text(offX + acti*mapw/N,offY + actj*maph/N,arr[acti*N + actj],{color: '#FFFF00',backgroundColor: '#000000', fontSize: 2048, fontStyle: 'Comic Sans'});
+        for (let i = 0; i < N*N; ++i) visitats.push(0);
+    }
+
+    function resize() {
+        var canvas = document.querySelector("canvas");
+        var windowWidth = window.innerWidth;
+        var windowHeight = window.innerHeight;
+        var windowRatio = windowWidth / windowHeight;
+        var gameRatio = game.config.width / game.config.height;
+
+        if(windowRatio < gameRatio){
+            canvas.style.width = windowWidth + "px";
+            canvas.style.height = (windowWidth / gameRatio) + "px";
+        }
+        else {
+            canvas.style.width = (windowHeight * gameRatio) + "px";
+            canvas.style.height = windowHeight + "px";
+        }
+    }
+
+    function update ()
+    {
+        graphics = this.add.graphics({ fillStyle: { color: 0x0000ff}});
+        graphics.fillRectShape(rect[N*acti + actj]);
+        var pointer = this.input.activePointer;
+        let tmp = Math.atan2(config.height/2 - pointer.worldY, pointer.worldX - config.width/2);
+        tmp = tmp/(2*Math.PI);
+        tmp = tmp*360;
+
+        let sumaXplus = 0;
+        let sumaYplus = 0;
+        let sumaXminus = 0;
+        let sumaYminus = 0;
+
+        for (let i = acti + 1; i < N; ++i) sumaYminus += arr[i*N + actj];
+        for (let i = acti - 1; i >= 0; --i) sumaYplus += arr[i*N + actj];
+        for (let j = actj + 1; j < N; ++j) sumaXplus += arr[acti*N + j];
+        for (let j = actj - 1; j >= 0; --j) sumaXminus += arr[acti*N + j]; 
+
+        if (count > k && !lost) {
+            alert("YOU LOST!!!!!");
+            lost = true;
+            create();
+        }
+        
+        else if (count == k && !won) {
+            alert("YOU WOOOOOOOON!!!!!!!");
+            won = true;
+            create();
+        }
+
+        text1.setText([
+        'x: ' + pointer.worldX,
+        'y: ' + pointer.worldY,
+        'angulo: ' + tmp,
+        'count to: ' + (k - count),
+        'actual = ' + arr[actj + acti*N],
+        'sum left = ' + sumaYplus,
+        'sum right = ' + sumaYminus,
+        'sum below = ' + sumaXplus,
+        'sum above = ' + sumaXminus, 
+
+    ]);
+        if (pointer.isDown && !pressed) {
+            pressed = true;
+            
+            graphics = this.add.graphics({ fillStyle: { color: 0xffff00}});
+            graphics.lineStyle(Math.floor(100/N), 0xffff8f, 1.0);   // color: 0xRRGGBB
+            graphics.strokeRectShape(rect[N*acti + actj]);
+            graphics.fillRectShape(rect[N*acti + actj]);
+            if (tmp > 45 && tmp < 135) --actj;
+            else if ((tmp > 135 && tmp < 180) || (tmp < -135 && tmp > -180)) --acti;
+            else if (tmp > -135 && tmp < -45) ++actj;
+            else ++acti;
+            
+            if (acti >= N) acti = N - 1;
+            if (actj >= N) actj = N - 1;
+            if (actj < 0) actj = 0;
+            if (acti < 0) acti = 0;
+
+            if (visitats[actj + acti*N] != -1)  {
+                count += arr[actj + acti*N]; 
+                visitats[actj + acti*N] = -1;
+            }
+            
+        }
+
+        else if (!pointer.isDown) pressed = false;
+        
+        
+        /*if (keyDown.isDown) {
+            DownPressed = true;
+            ++acti;
+            
+
+            if (acti >= N) acti = N - 1;
+            if (actj >= N) actj = N - 1;
+            if (actj < 0) actj = 0;
+            if (acti < 0) acti = 0;
+        }
+        else if (!keyDown.isDown) DownPressed = false;*/
+    }
+
+    function generate_value() {
+    
+        k = 0;
+    
+        let stack = [];
+        let visited = [];
+        stack.push(N/2 + N/2*N);
+    
+        visited.push(N/2 + N/2*N);
+    
+        let num_steps_max = Math.floor(Math.random() * ((N) - 4 + 1) ) + 4;
+        let num_steps = 0;
+        let actual = 0;
+
+        while (!(stack.length == 0) && num_steps < num_steps_max) {
+      
+            actual = stack[stack.length - 1];
+            stack.pop();
+      
+            if (actual < N*N && actual >= 0 && !(actual in visited)) {
+                ++num_steps;
+                visited.push(actual);
+                k += arr[actual];
+                let rand = Math.floor(Math.random() * (3-0+1)) + 0;
+        
+                switch(rand) {
+                    case 0:
+                        stack.push(actual + 1);
+                        break;
+                    case 1:
+                        stack.push(actual - 1);
+                        break;
+                    case 2:
+                        stack.push(actual - N);
+                        break;
+                    case 3:
+                        stack.push(actual + N);
+                        break;
+                }
+            }
+        }
+    
+        stack = [];
+        let visited_dois = [];
+        let sum = 0;
+    
+        stack.push(actual);
+        visited_dois.push(actual);
+    
+    while (!stack.empty && k - sum  > 9) {
+      
+      let actual = stack[stack.length - 1];
+      
+      if (actual < N*N && actual >= 0 && !(actual in visited_dois)) {
+        visited_dois.push(actual);
+        sum += arr[actual];
+        if (k - sum <= 9) {
+          arr[actual] = k - sum;
+          break;
+        }
+        let rand = Math.floor(Math.random() * (3-0+1)) + 0;
+        
+        switch(rand) {
+          case 0:
+            stack.push(actual + 1);
+            break;
+          case 1:
+            stack.push(actual - 1);
+            break;
+          case 2:
+            stack.push(actual - N);
+            break;
+          case 3:
+            stack.push(actual + N);
+            break;
+        }
+      }
+    } 
+  }
+
+</script>
+</div>
+</body>
+</html>
